@@ -1,1 +1,2 @@
-config
+config/root_key.pub
+config/web_keys.pub

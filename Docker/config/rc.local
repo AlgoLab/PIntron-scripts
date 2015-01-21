@@ -1,0 +1,13 @@
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# su -c /home/pintron/pintron/Docker/build-pintron.sh pintron
+t=$(date +%M)
+perl -e "s/__RANDOM_MINUTE__/${t}/" -i.bak /etc/crontab
+
+exit 0
