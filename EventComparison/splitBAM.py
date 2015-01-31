@@ -35,7 +35,7 @@ def main():
 		print "Error: missing argument."
 		return
 
-        if (in_region != "" and gene_name != ""):
+        if (in_region != "" and in_gene != ""):
                 print "Error: specify only one option between region (-r) and gene name (-g)."
                 return
 
@@ -118,8 +118,9 @@ def main():
                            ' ', Bar(marker='=', left='[', right=']'),
                            ' ', Timer()]
                 bar = ProgressBar(widgets=widgets, maxval=tot_fetch_aln).start()
-
-                with open(k + ".fa", "w") as out_fasta:
+                if not (os.path.exists(k)):
+                        os.mkdir(k)
+                with open(k + "/" + k + ".fa", "w") as out_fasta:
                         num_aln = 0
                         for read in fetch_aln:
                                 num_aln = num_aln + 1
@@ -141,7 +142,7 @@ def main():
                         out_fasta.close()
                         bar.finish()
                         print "Num. Processed Alignments: {0}".format(num_aln)
-                in_sam.close()
+        in_sam.close()
 
 if __name__ == '__main__':
         main()
