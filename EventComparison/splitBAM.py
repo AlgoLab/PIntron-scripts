@@ -112,7 +112,6 @@ def main():
                 if(tot_fetch_aln == 0):
                         print "No valid alignments found."
                         continue
-                print "Num. aligned reads: {0}".format(tot_fetch_aln)
 
                 widgets = ['Processing: ', Percentage(), 
                            ' ', Bar(marker='=', left='[', right=']'),
@@ -121,10 +120,11 @@ def main():
                 if not (os.path.exists(k)):
                         os.mkdir(k)
                 with open(k + "/" + k + ".fa", "w") as out_fasta:
-                        num_aln = 0
+                        num_proc_seq = 0
+                        num_valid_seq = 0
                         for read in fetch_aln:
-                                num_aln = num_aln + 1
-                                bar.update(num_aln)
+                                num_proc_seq = num_proc_seq + 1
+                                bar.update(num_proc_seq)
                                 ref_name = in_sam.getrname(read.reference_id)
                                 fasta_hdr = ">/gb=" + read.query_name
                                 if read.is_paired:
@@ -136,12 +136,19 @@ def main():
                                 fasta_hdr += " /ref_end=" + ref_name
                                 fasta_hdr += ":" + str(read.reference_end)
                                 #print fasta_hdr
-                                out_fasta.write(fasta_hdr + "\n")
                                 #print read.query_sequence
-                                out_fasta.write(read.query_sequence + "\n")
+                                if not (read.is_paired):
+                                        num_valid_seq = num_valid_seq + 1
+                                        out_fasta.write(fasta_hdr + "\n")
+                                        out_fasta.write(read.query_sequence + "\n")
+                                elif not (read.mate_is_unmapped):
+                                        num_valid_seq = num_valid_seq + 1
+                                        out_fasta.write(fasta_hdr + "\n")
+                                        out_fasta.write(read.query_sequence + "\n")
                         out_fasta.close()
                         bar.finish()
-                        print "Num. Processed Alignments: {0}".format(num_aln)
+                        print "Num. Processed Sequences: {0}".format(num_proc_seq)
+                        print "Num. Valid Sequences: {0}".format(num_valid_seq)
         in_sam.close()
 
 if __name__ == '__main__':
