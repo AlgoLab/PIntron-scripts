@@ -1,5 +1,10 @@
 #!/usr/bin/python2.7
 
+import gzip
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
+from Bio.Alphabet import generic_dna
 import pysam
 from optparse import OptionParser
 import os
@@ -18,6 +23,9 @@ def main():
                           metavar = "<chr:start-stop>",
                           help = "Region to be examined in the form: chr:start-stop. Ex. 1:100-200.",
                           default = "")
+        parser.add_option("-f",
+                          metavar = "<fasta_dir>",
+                          help = "Directory containing FASTA (.gz) files of the chromosomes.")
         parser.add_option("-g",
                           metavar = "<gene_name>",
                           help = "Gene name.",
@@ -28,10 +36,12 @@ def main():
         (options, args) = parser.parse_args()
         in_bam_file = options.b
         in_region = options.r
+        in_fasta_dir = options.f
+        in_fasta_prefix_name = "Homo_sapiens.GRCh38.dna.chromosome."
         in_gene = options.g
 	in_annot_file = options.a
 
-        if not (in_bam_file and in_annot_file):
+        if not (in_bam_file and in_annot_file and in_fasta_dir):
 		print "Error: missing argument."
 		return
 
@@ -42,6 +52,9 @@ def main():
         regexp_reg = re.compile(r'^(\w+):(\d+)-(\d+)')
 	regexp_annot = re.compile(r'^([\dXY]+)\t(\d+)\t(\d+)\t([+\-])' \
 		'\tgene_id=\"(\w+)\"\tgene_version=\"(\d+)\"\tgene_name=\"([\w\-\.]+)\"')
+
+        if not (os.path.exists(in_fasta_dir)):
+                print "Error: directory {0} not found.".format(in_fasta_dir)
 
 	in_annot = open(in_annot_file, "r")
 
@@ -68,18 +81,18 @@ def main():
 			chr = ga.group(1)
 			start = int(ga.group(2))
 			stop = int(ga.group(3))
-			strand = ga.group(4)
+			strand = str(ga.group(4))
 			gene_id = str(ga.group(5))
 			gene_version = int(ga.group(6))
 			gene_name = str(ga.group(7))
 			insert = False
 			el = {'chr' : chr,
-				'start' : start,
-				'stop' : stop,
-				'strand' : strand,
-				'gene_id' : gene_id,
-				'gene_version' : gene_version,
-				'gene_name' : gene_name}
+                              'start' : start,
+                              'stop' : stop,
+                              'strand' : strand,
+                              'gene_id' : gene_id,
+                              'gene_version' : gene_version,
+                              'gene_name' : gene_name}
 			if(in_gene != ""):
 				if(in_gene == gene_name or in_gene == gene_id):
 					insert = True
@@ -103,22 +116,26 @@ def main():
 	print "Parsed {0} annotated genes.".format(count)
         print "Num. of retrieved genes: {0}.".format(len(match_elem))
         for k in match_elem.keys():
+                print ""
                 print "Creating gene {0}.".format(k)
                 r_chr = match_elem[k]['chr']
                 r_start = match_elem[k]['start'] - 1000
                 r_stop = match_elem[k]['stop'] + 1000
+                r_strand = match_elem[k]['strand']
                 fetch_aln = in_sam.fetch(r_chr, r_start, r_stop)
                 tot_fetch_aln = in_sam.count(r_chr, r_start, r_stop)
                 if(tot_fetch_aln == 0):
                         print "No valid alignments found."
                         continue
 
-                widgets = ['Processing: ', Percentage(), 
+                if not (os.path.exists(k)):
+                        os.mkdir(k)
+
+                #Compute reads
+                widgets = ['Processing: ', Percentage(),
                            ' ', Bar(marker='=', left='[', right=']'),
                            ' ', Timer()]
                 bar = ProgressBar(widgets=widgets, maxval=tot_fetch_aln).start()
-                if not (os.path.exists(k)):
-                        os.mkdir(k)
                 with open(k + "/" + k + ".fa", "w") as out_fasta:
                         num_proc_seq = 0
                         num_valid_seq = 0
@@ -149,6 +166,44 @@ def main():
                         bar.finish()
                         print "Num. Processed Sequences: {0}".format(num_proc_seq)
                         print "Num. Valid Sequences: {0}".format(num_valid_seq)
+
+                #Compute genomics
+                print "Cutting genomic sequence."
+                found = True
+                results = []
+                seq_name = ""
+                if not(r_chr[:3] == "chr"):
+                        seq_name += "chr"
+                fasta_seq_name = in_fasta_dir + "/" + in_fasta_prefix_name + r_chr + ".fa.gz"
+                if not os.path.isfile(fasta_seq_name):
+                        print "Error: file {0} does not exists.".format(fasta_seq_name)
+                        return
+                seq_handle = gzip.open(fasta_seq_name, "r")
+                for sequence in SeqIO.parse(seq_handle, "fasta"):
+                        if (sequence.id == r_chr):
+                                found = True
+                                sub_s = Seq(str(sequence.seq[r_start:r_stop]), generic_dna)
+                                seq_id = "{0}{1}:{2}:{3}:".format(seq_name,r_chr,r_start,r_stop)
+                                if(r_strand == "-"):
+                                        sub_s = sub_s.reverse_complement()
+                                        seq_id += "-1"
+                                        #descr += " ReverseComplemented"
+                                else:
+                                        seq_id += "+1"
+                                seqrec = SeqRecord(sub_s)
+                                seqrec.id = str(seq_id)
+                                #descr += " Length={0}bp.".format(len(sub_s))
+                                seqrec.description = ""
+                                results.append(seqrec)
+                                #print seqrec.seq
+                                print "Cut sequence of {0}bp.".format(len(sub_s))
+                if not (found):
+                        print "No sequence {0} found in {1}.".format(chr, in_fasta_file)
+                else:
+                        out_genomic = open(k + "/" + "genomic.txt", "w")
+                        SeqIO.write(results, out_genomic, "fasta")
+                        out_genomic.close()
+
         in_sam.close()
 
 if __name__ == '__main__':
