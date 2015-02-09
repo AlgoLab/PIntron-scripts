@@ -66,17 +66,20 @@ def main():
 
         if(in_region != ""):
                 region = re.search(regexp_reg, in_region)
-                if(region):
+                if (region):
                         in_chr = region.group(1)
                         in_start = int(region.group(2))
                         in_stop = int(region.group(3))
                 else:
                         print "Error: wrong input region."
                         return
+                if (in_start > in_stop):
+                        print "Error: wring input region."
+                        return
 
 	for a in in_annot:
 		ga = re.search(regexp_annot, a)
-		if(ga):
+		if (ga):
 			count = count + 1
 			chr = ga.group(1)
 			start = int(ga.group(2))
@@ -136,41 +139,60 @@ def main():
                            ' ', Bar(marker='=', left='[', right=']'),
                            ' ', Timer()]
                 bar = ProgressBar(widgets=widgets, maxval=tot_fetch_aln).start()
-                with open(k + "/" + k + ".fa", "w") as out_fasta:
-                        num_proc_seq = 0
-                        num_valid_seq = 0
-                        for read in fetch_aln:
-                                num_proc_seq = num_proc_seq + 1
-                                bar.update(num_proc_seq)
-                                ref_name = in_sam.getrname(read.reference_id)
-                                fasta_hdr = ">/gb=" + read.query_name
-                                if read.is_paired:
-                                        fasta_hdr += ("_R1" if read.is_read1 else "_R2")
-                                fasta_hdr += " /clone_end=3'" + " /reversed="
-                                fasta_hdr += ("yes" if read.is_reverse else "no")
-                                fasta_hdr += " /ref_start=" + ref_name
-                                fasta_hdr += ":" + str(read.reference_start)
-                                fasta_hdr += " /ref_end=" + ref_name
-                                fasta_hdr += ":" + str(read.reference_end)
-                                #print fasta_hdr
-                                #print read.query_sequence
-                                if not (read.is_paired):
-                                        num_valid_seq = num_valid_seq + 1
-                                        out_fasta.write(fasta_hdr + "\n")
-                                        out_fasta.write(read.query_sequence + "\n")
-                                elif not (read.mate_is_unmapped):
-                                        num_valid_seq = num_valid_seq + 1
-                                        out_fasta.write(fasta_hdr + "\n")
-                                        out_fasta.write(read.query_sequence + "\n")
-                        out_fasta.close()
-                        bar.finish()
-                        print "Num. Processed Sequences: {0}".format(num_proc_seq)
-                        print "Num. Valid Sequences: {0}".format(num_valid_seq)
+                num_proc_seq = 0
+                num_valid_seq = 0
+                num_disc_seq = 0
+                valid = []
+                discarded = []
+                for read in fetch_aln:
+                        num_proc_seq = num_proc_seq + 1
+                        bar.update(num_proc_seq)
+                        ref_name = in_sam.getrname(read.reference_id)
+                        fasta_hdr = ">/gb=" + read.query_name
+                        if read.is_paired:
+                                fasta_hdr += ("_R1" if read.is_read1 else "_R2")
+                        fasta_hdr += " /clone_end=3'" + " /reversed="
+                        fasta_hdr += ("yes" if read.is_reverse else "no")
+                        fasta_hdr += " /ref_start=" + ref_name
+                        fasta_hdr += ":" + str(read.reference_start)
+                        fasta_hdr += " /ref_end=" + ref_name
+                        fasta_hdr += ":" + str(read.reference_end)
+                        record = SeqRecord(Seq(read.query_sequence, generic_dna))
+                        record.id = fasta_hdr
+                        record.description = ""
+                        #print fasta_hdr
+                        #print read.query_sequence
+                        if not (read.is_paired):
+                                num_valid_seq = num_valid_seq + 1
+                                valid.append(record)
+                        else:
+                                if not (read.mate_is_unmapped):
+                                        if (read.reference_id == read.next_reference_id and
+                                            read.next_reference_start >= r_start and
+                                            read.next_reference_start <= r_stop):
+                                                num_valid_seq = num_valid_seq + 1
+                                                valid.append(record)
+                                        else:
+                                                num_disc_seq = num_disc_seq + 1
+                                                discarded.append(record)
+                                else:
+                                        num_disc_seq = num_disc_seq + 1
+                                        discarded.append(record)
+                bar.finish()
+                out_fasta = open(k + "/" + k + ".fa", "w")
+                SeqIO.write(valid, out_fasta, "fasta")
+                out_fasta.close()
+                out_dis = open(k + "/" + "discarded.fa", "w")
+                SeqIO.write(discarded, out_dis, "fasta")
+                out_dis.close()
+                print "Num. Processed Sequences: {0}".format(num_proc_seq)
+                print "Num. Valid Sequences: {0}".format(num_valid_seq)
+                print "Num. Discarded Sequences: {0}".format(num_disc_seq)
 
                 #Compute genomics
                 print "Cutting genomic sequence."
                 found = True
-                results = []
+                sequences = []
                 seq_name = ""
                 if not(r_chr[:3] == "chr"):
                         seq_name += "chr"
@@ -194,14 +216,14 @@ def main():
                                 seqrec.id = str(seq_id)
                                 #descr += " Length={0}bp.".format(len(sub_s))
                                 seqrec.description = ""
-                                results.append(seqrec)
+                                sequences.append(seqrec)
                                 #print seqrec.seq
                                 print "Cut sequence of {0}bp.".format(len(sub_s))
                 if not (found):
                         print "No sequence {0} found in {1}.".format(chr, in_fasta_file)
                 else:
                         out_genomic = open(k + "/" + "genomic.txt", "w")
-                        SeqIO.write(results, out_genomic, "fasta")
+                        SeqIO.write(sequences, out_genomic, "fasta")
                         out_genomic.close()
 
         in_sam.close()
