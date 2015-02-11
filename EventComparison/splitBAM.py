@@ -15,24 +15,24 @@ def main():
         parser = OptionParser(description = "Split aligned read from BAM file "\
                               "according to the annotation file.",
                               usage = "%prog -b <aln_file.bam> -a <annotation_file.csv> "\
-                              "[-r <chr:start-stop> | -g <gene_name>]")
+                              "-f <fasta_dir> [-r <chr:start-stop> | -g <gene_name>]")
         parser.add_option("-b",
                           metavar = "<aln_file.bam>",
                           help = "Alignment file in BAM format.")
+	parser.add_option("-a",
+                          metavar = "<annotation_file.csv>",
+                          help = "Gene annotation file in CSV format.")
+        parser.add_option("-f",
+                          metavar = "<fasta_dir>",
+                          help = "Directory containing FASTA (.gz) files of the chromosomes.")
         parser.add_option("-r",
                           metavar = "<chr:start-stop>",
                           help = "Region to be examined in the form: chr:start-stop. Ex. 1:100-200.",
                           default = "")
-        parser.add_option("-f",
-                          metavar = "<fasta_dir>",
-                          help = "Directory containing FASTA (.gz) files of the chromosomes.")
         parser.add_option("-g",
                           metavar = "<gene_name>",
                           help = "Gene name.",
                           default = "")
-	parser.add_option("-a",
-                          metavar = "<annotation_file.csv>",
-                          help = "Gene annotation file in CSV format.")
         (options, args) = parser.parse_args()
         in_bam_file = options.b
         in_region = options.r
