@@ -53,7 +53,7 @@ RUN chown pintron:pintron /config
 # Set the ssh key for root
 COPY config/root_key.pub /root/.ssh/authorized_keys
 COPY config/sshd_config /etc/ssh/sshd_config
-COPY config/rc.local /etc/rc.local
+COPY config/rc.local /etc/my_init.d/init-crontab.sh
 COPY config/crontab /etc/crontab
 COPY build-pintron.sh /build/
 
