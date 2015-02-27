@@ -15,3 +15,4 @@ MAILTO=""
 52 6	1 * *	root	cd / && run-parts --report /etc/cron.monthly
 #
 59 * * * * pintron test -x ~/pintron/Docker/build-pintron.sh && ~/pintron/Docker/build-pintron.sh
+00 */2  * * *   root     dpkg --configure -a && apt-get -qq -f install && apt-get -qq update && apt-get -y -qq upgrade && apt-get -qq clean
