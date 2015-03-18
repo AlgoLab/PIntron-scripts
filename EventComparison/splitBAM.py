@@ -127,7 +127,7 @@ def main():
                 r_strand = match_elem[k]['strand']
                 fetch_aln = in_sam.fetch(r_chr, r_start, r_stop)
                 tot_fetch_aln = in_sam.count(r_chr, r_start, r_stop)
-                if(tot_fetch_aln == 0):
+                if(tot_fetch_aln == 0 or tot_fetch_aln < 10):
                         print "No valid alignments found."
                         continue
 
@@ -148,7 +148,7 @@ def main():
                         num_proc_seq = num_proc_seq + 1
                         bar.update(num_proc_seq)
                         ref_name = in_sam.getrname(read.reference_id)
-                        fasta_hdr = ">/gb=" + read.query_name
+                        fasta_hdr = "/gb=" + read.query_name
                         if read.is_paired:
                                 fasta_hdr += ("_R1" if read.is_read1 else "_R2")
                         fasta_hdr += " /clone_end=3'" + " /reversed="
