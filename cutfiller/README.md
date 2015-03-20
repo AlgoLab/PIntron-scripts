@@ -1,23 +1,23 @@
-cutfiller is a Python script which reconstructs gene putative exons from alignments of RNA-seq data on a genome.
+## Goals
 
-Input data
+To process the files that have been output by PIntron, so that the result can be visualized by pintronweb.
 
-- file out-after-intron-agree.txt of the alignments produced by PIntron (option -a or --alignment-file; default: none)
-- file predicted-introns.txt of the introns produced by PIntron (option -p or --pintron-output; default: none)
+There are two steps:
+1. to process the introns and the alignments, producing a list of all exons detected. *cutfiller* is the program for this phase.
+2. to process the exons, producing the gene structure, *cutassemble* is the program for this phase.
+
+## cutfiller
+
+This script reconstructs gene putative exons from alignments of RNA-seq data on a genome.
+
+### Input data
+
+- file ```out-after-intron-agree.txt``` of the alignments produced by PIntron (option -a or --alignment-file; default: none)
+- file ```predicted-introns.txt``` of the introns produced by PIntron (option -p or --pintron-output; default: none)
 - maximum accepted intron length. Introns exceeding this value will be discarded (option -l or --max-intron-length; default: 15000)
 
 As an alternative to the above files, cutfiller can take in input a SAM file containing the RNA-seq alignments (option -s or --samfile; default: none)
 
-Output data:
-
-In standard output, for each one of the putative exons, cutfiller produces a record of the following three tab-separated fields:
-		the exon start on the genome (input of PIntron)
-		the exon end on the genome (input of PIntron)
-		a flag indicating that the exon is complete (flag=0), is uncomplete on the left (flag=1) or is uncomplete on the right
-		(flag=2)
-
-Log information is produced in standard error.
-	
 Each alignment in the input file out-after-intron-agree.txt is represented in the following format:
 	
 	><header>
@@ -57,3 +57,32 @@ Each intron the input file predicted-introns.txt is represented as a record of t
 		– intron prefix
 		– intron suffix
 		– acceptor exon prefix
+
+
+###Output data
+
+A list of exons, encoded by:
+		the exon start on the genome (input of PIntron)
+		the exon end on the genome (input of PIntron)
+		a flag indicating that the exon is complete (flag=0), is uncomplete on the left (flag=1) or is uncomplete on the right
+		(flag=2)
+
+The output format is still undecided, since it is mainly for internal uses to interact with ```cutassemble```.
+
+
+
+Log information is produced in standard error.
+	
+###Options
+* input files
+* output file (default: stdout)
+* log file (default: stderr)
+
+###Cutassemble
+
+Analyzes the results of ```cutfiller``` and produces a json file that is suitable for the visualization part. It should conform with the format of PIntron output file.
+
+###Options
+* input files
+* output file (default: stdout)
+* log file (default: stderr)
