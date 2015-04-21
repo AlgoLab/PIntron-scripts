@@ -78,8 +78,8 @@ def main( ):
     parser.add_argument( '-l', '--max-intron-length',
                          help = 'Max intron length accepted. Introns that exceed this value will be discarded',
                          required = False, dest = 'maxIntron', type = int, default = 15000 )
-    parser.add_argument( '-g', '--gap-threshold', help = 'Gap threshold for coverage computation.',
-                         required = False, dest = 'gapCoverage', type = int, default = 3)
+    parser.add_argument( '-g', '--gap-ends', help = 'Gap threshold at exon ends for their computation.',
+                         required = False, dest = 'gapEnds', type = int, default = 3)
     args = parser.parse_args(  )
 
     if not args.alfile and not args.samfile:
@@ -155,8 +155,8 @@ def main( ):
             if should_continue and site1 < site2:
                 nodes = cutst.search( [ site1, site2 ] )
                 if ( len( nodes ) > 0 and
-                     abs( nodes[ 0 ].root[ 0 ] - site1 ) < args.gapCoverage and
-                     abs( nodes[ -1 ].root[ 1 ] - site2 ) < args.gapCoverage
+                     abs( nodes[ 0 ].root[ 0 ] - site1 ) < args.gapEnds and
+                     abs( nodes[ -1 ].root[ 1 ] - site2 ) < args.gapEnds
                 ):
                     print "==> INTERVAL: {0}--{1}".format(site1, site2)
                     if ( is_unique( nodes ) ):
