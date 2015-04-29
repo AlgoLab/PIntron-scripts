@@ -19,14 +19,11 @@ def is_unique( interval_set ):
     else:
         s = "" + str(interval_set[0].root[0])
         for i in range( len( interval_set ) -1 ):
-            #print "{0}-{1}".format(interval_set[i].root[0], interval_set[i].root[1])
             if( interval_set[i].root[1] +1 != interval_set[i+1].root[0] ):
                 s = s + "--" + str(interval_set[i].root[1]) + "//" + str(interval_set[i+1].root[0])
                 uniq = False
-                #return False
         s = s + "--" + str(interval_set[-1].root[1])
         print "==> COVERAGE: {0}".format(s)
-        #return True
         return uniq
 
 def grow_right( interval_set ):
@@ -95,15 +92,24 @@ def main( ):
 
     # Open PIntron alignment file and build the tree
     align_index = 0
+    min_aln_pos = 0
+    max_aln_pos = 0
     if args.alfile:
         with open( args.alfile, 'r' ) as inInts:
             for line in inInts.readlines( ):
                 if not line.startswith( ">" ) and not line.startswith( "#" ):
                     print >> sys.stderr, "{0:<50}\r".format( "==> PROCESSING ALIGNMENT NUMBER {0:<10}".format( align_index ) ),
-                    align_index += 1
                     elements = line.split( ' ' )
                     begin = int( elements[ 2 ] )
                     end = int( elements[ 3 ] )
+                    if(align_index == 0):
+                        min_aln_pos = begin
+                        max_aln_pos = end
+                    if begin < min_aln_pos:
+                        min_aln_pos = begin
+                    if end > max_aln_pos:
+                        max_aln_pos = end
+                    align_index += 1
                     cutst.rbinsert( [ begin, end ] )
     elif args.samfile:
         with open( args.samfile, 'r') as inSam:
