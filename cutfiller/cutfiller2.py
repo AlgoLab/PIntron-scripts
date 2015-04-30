@@ -103,11 +103,11 @@ def grow_left( region, offset, max_gap ):
         return []
     else:
         exon = [ 0, 0, 0 ]
-        i = 0
+        i = 1
         end = len( region ) - 1
         max_e = region[ end ]
         while( i < max_gap ):
-            if( region[ i ] > max_e ):
+            if( region[ len ( region ) - i ] > max_e ):
                 end = len( region ) - i
                 max_e = region[ end ]
             i += 1
@@ -121,7 +121,7 @@ def grow_left( region, offset, max_gap ):
             else:
                 stop = True
             i += 1
-        exon[ 0 ] = begin
+        exon[ 0 ] = begin + offset
         logging.debug("Min Cov: {0} -- Max Cov: {1}".format(region[ begin : end ].min(),
                                                             region[ begin : end ].max() ) )
         mean_cov = region[ begin : end ].sum() / ( end - begin )
