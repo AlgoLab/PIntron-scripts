@@ -103,11 +103,11 @@ def grow_left( region, offset, max_gap ):
         return []
     else:
         exon = [ 0, 0, 0 ]
-        i = 0
+        i = 1
         end = len( region ) - 1
         max_e = region[ end ]
         while( i < max_gap ):
-            if( region[ i ] > max_e ):
+            if( region[ len ( region ) - i ] > max_e ):
                 end = len( region ) - i
                 max_e = region[ end ]
             i += 1
@@ -121,7 +121,7 @@ def grow_left( region, offset, max_gap ):
             else:
                 stop = True
             i += 1
-        exon[ 0 ] = begin
+        exon[ 0 ] = begin + offset
         logging.debug("Min Cov: {0} -- Max Cov: {1}".format(region[ begin : end ].min(),
                                                             region[ begin : end ].max() ) )
         mean_cov = region[ begin : end ].sum() / ( end - begin )
@@ -295,11 +295,18 @@ def main():
         logging.info( "==> NUMBER OF COMPLETE REGIONS FOR STARTING SITE {0}: {1}".format( site1, len( complete_regions_for_site1 ) ) )
         if len( complete_regions_for_site1 ) > 0:
             for region in complete_regions_for_site1:
-                s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                 str( region[ 0 ] + seq_start ), str( region[ 1 ] + seq_start ), str( region[ 2 ] ),
-                                 seq_strand, ".",
-                                 "exon_id=Ex_Com_" + str( exon_id ) + ";"
-                             ] )
+                if( seq_strand == '+' ):
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( region[ 0 ] + seq_start ), str( region[ 1 ] + seq_start ), str( region[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_Com_" + str( exon_id ) + ";"
+                                 ] )
+                else:
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( seq_end - region[ 1 ] ), str( seq_end - region[ 0 ] ), str( region[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_Com_" + str( exon_id ) + ";"
+                                 ] )
                 print s
                 exon_id += 1
     
@@ -310,11 +317,18 @@ def main():
             three_p_exon = grow_right( three_p_reg, pos, args.gapEnds )
             if( len( three_p_exon ) > 0 ):
                 #print "{0}\t{1}\t2".format( three_p_exon[ 0 ], three_p_exon[ 1 ] )
-                s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                 str( pos + seq_start ), str( three_p_exon[ 1 ] + seq_start ), str( three_p_exon[ 2 ] ),
-                                 seq_strand, ".",
-                                 "exon_id=Ex_3_" + str( exon_id ) + ";"
-                             ] )
+                if( seq_strand == '+' ):
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( pos + seq_start ), str( three_p_exon[ 1 ] + seq_start ), str( three_p_exon[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_3_" + str( exon_id ) + ";"
+                                 ] )
+                else:
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( seq_end - three_p_exon[ 1 ] ), str( seq_end - pos ), str( three_p_exon[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_3_" + str( exon_id ) + ";"
+                                 ] )
                 print s
                 exon_id += 1
 
@@ -325,11 +339,18 @@ def main():
             five_p_exon = grow_left( five_p_reg, min_aln_pos, args.gapEnds )
             if( len( five_p_exon ) > 0 ):
                 #print "{0}\t{1}\t1".format( five_p_exon[ 0 ], five_p_exon[ 1 ] )
-                s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                 str( five_p_exon[ 0 ] + seq_start ), str( pos + seq_start), str( five_p_exon[ 2 ] ),
-                                 seq_strand, ".",
-                                 "exon_id=Ex_5_" + str( exon_id ) + ";"
-                             ] )
+                if( seq_strand == '+' ):
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( five_p_exon[ 0 ] + seq_start ), str( pos + seq_start ), str( five_p_exon[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_5_" + str( exon_id ) + ";"
+                                 ] )
+                else:
+                    s = "\t".join( [ seq_name, "Cutfiller", "exon",
+                                     str( seq_end - pos ), str( seq_end - five_p_exon[ 0 ] ), str( five_p_exon[ 2 ] ),
+                                     seq_strand, ".",
+                                     "exon_id=Ex_5_" + str( exon_id ) + ";"
+                                 ] )
                 print s
                 exon_id += 1
     
