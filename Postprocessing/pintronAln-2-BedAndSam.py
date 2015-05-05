@@ -84,6 +84,8 @@ def pintron_alignments(alignments):
         elif line[0].isdigit():       # New block
             assert(curr_alignment)
             curr_alignment.blocks.append(SplicedAlignmentBlock(line))
+    if curr_alignment:
+        yield curr_alignment
 
 
 def convert_pintron_align_to_bed12(infile, genomic_block):
