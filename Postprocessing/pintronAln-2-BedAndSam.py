@@ -39,21 +39,37 @@ class SplicedAlignment:
 
     def to_bed12(self, genomic_ref):
         assert self.blocks, "No blocks for the current alignment are available!"
-        assert genomic_ref.strand == "+", "Calculations on reverse strand are not currently implemented!"
-        fstart = genomic_ref.start + self.blocks[0].gstart-1
-        fend = genomic_ref.start + self.blocks[-1].gend
-        res = [genomic_ref.seqname,
-               fstart,
-               fend,
-               self.identifier,
-               "0",
-               genomic_ref.strand,
-               fstart,
-               fend,
-               0,
-               len(self.blocks),
-               ",".join([ str(block.gend-block.gstart+1) for block in self.blocks]),
-               ",".join([ str(block.gstart-self.blocks[0].gstart) for block in self.blocks])]
+        if genomic_ref.strand == "+":
+            fstart = genomic_ref.start + self.blocks[0].gstart-1
+            fend = genomic_ref.start + self.blocks[-1].gend
+            res = [genomic_ref.seqname,
+                   fstart,
+                   fend,
+                   self.identifier,
+                   "0",
+                   genomic_ref.strand,
+                   fstart,
+                   fend,
+                   0,
+                   len(self.blocks),
+                   ",".join([ str(block.gend-block.gstart+1) for block in self.blocks]),
+                   ",".join([ str(block.gstart-self.blocks[0].gstart) for block in self.blocks])]
+        else:
+            fstart = genomic_ref.end - self.blocks[0].gstart + 1
+            fend = genomic_ref.end - self.blocks[-1].gend
+
+            res = [genomic_ref.seqname,
+                   fend,
+                   fstart,
+                   self.identifier,
+                   "0",
+                   genomic_ref.strand,
+                   fstart,
+                   fend,
+                   0,
+                   len(self.blocks),
+                   ",".join([ str(block.gend-block.gstart+1) for block in reversed(self.blocks)]),
+                   ",".join([ str(self.blocks[-1].gend-block.gend) for block in reversed(self.blocks)])]
         return res
 
 
