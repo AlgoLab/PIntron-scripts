@@ -242,8 +242,9 @@ def main():
             elements = line.split( "\t" )
             region_end = int( elements[ 0 ] ) -1
             region_begin = int( elements[ 1 ] ) +1
+            abs_end = int( elements[ 3 ] ) + 1
             bed_out.write( seq_name + "\t" + elements[ 2 ] + "\t" +
-                           elements[ 3 ] + "\t" + "Int" + str( int_num ) + "\n"
+                           str( abs_end ) + "\t" + "Int" + str( int_num ) + "\n"
             )
             int_num += 1
             if abs( region_begin - region_end ) <  args.maxIntron:
