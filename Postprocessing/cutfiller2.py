@@ -304,7 +304,7 @@ def main():
                                  ] )
                 else:
                     s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                     str( seq_end - region[ 1 ] ), str( seq_end - region[ 0 ] ), str( region[ 2 ] ),
+                                     str( seq_end - region[ 1 ] + 1 ), str( seq_end - region[ 0 ] + 1 ), str( region[ 2 ] ),
                                      seq_strand, ".",
                                      "exon_id=Ex_Com_" + str( exon_id ) + ";"
                                  ] )
@@ -326,7 +326,7 @@ def main():
                                  ] )
                 else:
                     s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                     str( seq_end - three_p_exon[ 1 ] ), str( seq_end - pos ), str( three_p_exon[ 2 ] ),
+                                     str( seq_end - three_p_exon[ 1 ] ), str( seq_end - pos + 1 ), str( three_p_exon[ 2 ] ),
                                      seq_strand, ".",
                                      "exon_id=Ex_3_" + str( exon_id ) + ";"
                                  ] )
@@ -348,7 +348,7 @@ def main():
                                  ] )
                 else:
                     s = "\t".join( [ seq_name, "Cutfiller", "exon",
-                                     str( seq_end - pos ), str( seq_end - five_p_exon[ 0 ] ), str( five_p_exon[ 2 ] ),
+                                     str( seq_end - pos + 1 ), str( seq_end - five_p_exon[ 0 ] ), str( five_p_exon[ 2 ] ),
                                      seq_strand, ".",
                                      "exon_id=Ex_5_" + str( exon_id ) + ";"
                                  ] )
