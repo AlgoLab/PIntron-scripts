@@ -3,134 +3,96 @@
 from __future__ import print_function
 
 import argparse
+import contextlib
+import gzip
+import json
 import logging
 import sys
 
 import pybedtools
 
-class GenomicBlock:
-    def __init__(self, genomic_header):
-        logging.debug("Building block from string '%s'", genomic_header)
-        parts = genomic_header.split(":")
-        self.seqname = parts[0]
-        self.start = int(parts[1])
-        self.end = int(parts[2])
-        self.strand = int(parts[3]+"1")
-        self.strand = "+" if self.strand > 0 else "-"
-        logging.debug("Built block '%s'", self)
 
-    def __str__(self):
-        return "{self.seqname}:{self.start}:{self.end}:{self.strand}".format(self=self)
-
-    def to_bed(self):
-        return (self.seqname, self.start-1, self.end, self.strand)
-
-class SplicedAlignment:
-    def __init__(self, identifier):
-        logging.debug("New spliced alignment for sequence '%s'", identifier)
-        self.identifier = identifier
-        if self.identifier.startswith("/gb="):
-            self.identifier = self.identifier[4:]
-        self.blocks = []
-
-    def __str__(self):
-        return "{identifier} [{blocks}]".format(identifier=self.identifier,
-                                                blocks=", ".join([str(block) for block in self.blocks]))
-
-    def to_bed12(self, genomic_ref):
-        assert self.blocks, "No blocks for the current alignment are available!"
-        if genomic_ref.strand == "+":
-            fstart = genomic_ref.start + self.blocks[0].gstart-1
-            fend = genomic_ref.start + self.blocks[-1].gend
-            res = [genomic_ref.seqname,
-                   fstart,
-                   fend,
-                   self.identifier,
-                   "0",
-                   genomic_ref.strand,
-                   fstart,
-                   fend,
-                   0,
-                   len(self.blocks),
-                   ",".join([ str(block.gend-block.gstart+1) for block in self.blocks]),
-                   ",".join([ str(block.gstart-self.blocks[0].gstart) for block in self.blocks])]
+@contextlib.contextmanager
+def smart_open_in(filename=None):
+    if filename and filename != '-':
+        fn = filename
+        fo = open(filename, 'r')
+        if filename.endswith(".gz"):
+            fh = gzip.GzipFile(fn, 'rb', 9, fo)
         else:
-            fstart = genomic_ref.end - self.blocks[0].gstart + 1
-            fend = genomic_ref.end - self.blocks[-1].gend
+            fh = fo
+    else:
+        fn = "<stdout>"
+        fo = sys.stdin
+        fh = sys.stdin
 
-            res = [genomic_ref.seqname,
-                   fend,
-                   fstart,
-                   self.identifier,
-                   "0",
-                   genomic_ref.strand,
-                   fstart,
-                   fend,
-                   0,
-                   len(self.blocks),
-                   ",".join([ str(block.gend-block.gstart+1) for block in reversed(self.blocks)]),
-                   ",".join([ str(self.blocks[-1].gend-block.gend) for block in reversed(self.blocks)])]
-        return res
+    try:
+        yield fh
+    finally:
+        if fh is not fo:
+            fh.close()
+        if fo is not sys.stdin:
+            fo.close()
 
 
+def alignment_to_bed12(genomic_ref, alignment):
+    blocks = alignment["blocks"]
+    if genomic_ref["strand"] == "+":
+        fstart = blocks[0]["genomic_absolute_start"]-1
+        fend = blocks[-1]["genomic_absolute_end"]
+        res = [genomic_ref["seqname"],
+               fstart,
+               fend,
+               alignment["identifier"],
+               "0",
+               genomic_ref["strand"],
+               fstart,
+               fend,
+               0,
+               len(blocks),
+               ",".join([str(block["genomic_absolute_end"] - block["genomic_absolute_start"]+1)
+                         for block in blocks]),
+               ",".join([str(block["genomic_absolute_start"] - fstart - 1)
+                         for block in blocks])]
+    else:
+        fstart = blocks[-1]["genomic_absolute_end"] - 1
+        fend = blocks[0]["genomic_absolute_start"]
+        res = [genomic_ref["seqname"],
+               fstart,
+               fend,
+               alignment["identifier"],
+               "0",
+               genomic_ref["strand"],
+               fstart,
+               fend,
+               0,
+               len(blocks),
+               ",".join([str(block["genomic_absolute_start"] - block["genomic_absolute_end"] + 1)
+                         for block in reversed(blocks)]),
+               ",".join([str(block["genomic_absolute_end"] - fstart - 1)
+                         for block in reversed(blocks)])]
+    return res
 
 
-class SplicedAlignmentBlock:
-    def __init__(self, blockstr):
-        parts = blockstr.split()
-        (self.sstart, self.send,
-         self.gstart, self.gend,
-         self.sblock, self.gblock) = (int(parts[0]), int(parts[1]),
-                                      int(parts[2]), int(parts[3]),
-                                      parts[4], parts[5])
-
-    def __str__(self):
-        return "{self.gstart}-{self.gend}".format(self=self)
-
-def pintron_alignments(alignments):
-    curr_alignment = None
-    for line in alignments:
-        line = line.strip()
-        if line.startswith(">"):      # New sequence/alignment
-            if curr_alignment:
-                yield curr_alignment
-            curr_alignment = SplicedAlignment(line.lstrip(">").split()[0])
-        elif line.startswith("#"):    # Annotation (currently ignored)
-            pass
-        elif line[0].isdigit():       # New block
-            assert(curr_alignment)
-            curr_alignment.blocks.append(SplicedAlignmentBlock(line))
-    if curr_alignment:
-        yield curr_alignment
-
-
-def convert_pintron_align_to_bed12(infile, genomic_block):
-    logging.info("Starting conversion of '%s'", infile.name)
+def convert_pintron_align_to_bed12(genomic_block, alignments):
+    logging.info("Starting conversion of %d alignments...", len(alignments))
     bed12 = []
-    for alignment in pintron_alignments(infile):
-        bed12.append(alignment.to_bed12(genomic_block))
-    logging.info("Conversion terminated")
+    for alignment in alignments.values():
+        bed12.append(alignment_to_bed12(genomic_block, alignment))
+    logging.info("Conversion terminated.")
     return pybedtools.BedTool(bed12).sort()
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('pintron-align-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=sys.stdin)
-    parser.add_argument('-g', '--pintron-genomic-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('genomic.txt'))
+    parser.add_argument('-j', '--pintron-results-file',
+                        default="-")
     parser.add_argument('-b', '--output-bed12-file',
-                        nargs='?',
                         type=argparse.FileType(mode='w'),
-                        default=sys.stdout)
+                        default=open("alignments.bed", "w"))
     parser.add_argument('-s', '--output-sam-file',
-                        nargs='?',
                         type=argparse.FileType(mode='w'),
-                        default=sys.stdout)
+                        default=open("alignments.sam", "w"))
     parser.add_argument('-v', '--verbose',
                         help='increase output verbosity',
                         action='count', default=0)
@@ -151,19 +113,24 @@ def main():
     if args['output_bed12_file'] == args['output_sam_file']:
         sys.exit("The BED and SAM output files cannot be the same file!")
 
-    genomic_block = GenomicBlock(args['pintron_genomic_file'].readline().strip().lstrip(">"))
+    logging.info("Reading PIntron results from file '%s'", args["pintron_results_file"])
+    results = None
+    with smart_open_in(args["pintron_results_file"]) as fjsonin:
+        results = json.load(fjsonin)
 
-    bed_desc = convert_pintron_align_to_bed12(args['pintron-align-file'], genomic_block)
+    genomic_block = results["genome"]
+
+    bed_desc = convert_pintron_align_to_bed12(genomic_block, results["alignments"])
 
     logging.info("Writing in BED format to file '%s'", args['output_bed12_file'].name)
-    print(bed_desc, file=args['output_bed12_file'])
+    print(bed_desc, file=args['output_bed12_file'], end="")
 
     logging.info("Converting to SAM format...")
     sam_desc = bed_desc.to_bam(genome="hg38", bed12=True)
     logging.info("Writing in SAM format to file '%s'", args['output_sam_file'].name)
-    print(sam_desc, file=args['output_sam_file'])
+    print(sam_desc, file=args['output_sam_file'], end="")
 
-
+    logging.info("Terminated.")
 
 
 if __name__ == "__main__":
