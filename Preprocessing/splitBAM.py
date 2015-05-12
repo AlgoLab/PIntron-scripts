@@ -142,15 +142,17 @@ def main():
                 num_proc_seq = 0
                 num_valid_seq = 0
                 num_disc_seq = 0
+                valid_id = set()
                 valid = []
                 discarded = []
                 for read in fetch_aln:
                         num_proc_seq = num_proc_seq + 1
                         bar.update(num_proc_seq)
                         ref_name = in_sam.getrname(read.reference_id)
-                        fasta_hdr = "/gb=" + read.query_name
+                        read_name = read.query_name
                         if read.is_paired:
-                                fasta_hdr += ("_R1" if read.is_read1 else "_R2")
+                                read_name += ("_R1" if read.is_read1 else "_R2")
+                        fasta_hdr = "/gb=" + read_name
                         fasta_hdr += " /clone_end=3'" + " /reversed="
                         fasta_hdr += ("yes" if read.is_reverse else "no")
                         fasta_hdr += " /ref_start=" + ref_name
@@ -163,15 +165,19 @@ def main():
                         #print fasta_hdr
                         #print read.query_sequence
                         if not (read.is_paired):
-                                num_valid_seq = num_valid_seq + 1
-                                valid.append(record)
+                                if read_name not in valid_id:
+                                        num_valid_seq = num_valid_seq + 1
+                                        valid.append(record)
+                                        valid_id.add(read_name)
                         else:
                                 if not (read.mate_is_unmapped):
                                         if (read.reference_id == read.next_reference_id and
                                             read.next_reference_start >= r_start and
                                             read.next_reference_start <= r_stop):
-                                                num_valid_seq = num_valid_seq + 1
-                                                valid.append(record)
+                                                if read_name not in valid_id:
+                                                        num_valid_seq = num_valid_seq + 1
+                                                        valid.append(record)
+                                                        valid_id.add(read_name)
                                         else:
                                                 num_disc_seq = num_disc_seq + 1
                                                 discarded.append(record)
