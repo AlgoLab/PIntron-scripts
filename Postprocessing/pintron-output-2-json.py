@@ -12,18 +12,17 @@ import sys
 
 
 @contextlib.contextmanager
-def smart_open_out(filename=None, compressed=False):
+def smart_open_out(filename=None):
     if filename and filename != '-':
         fn = filename
         fo = open(filename, 'w')
+        if filename.endswith(".gz"):
+            fh = gzip.GzipFile(fn, 'wb', 9, fo)
+        else:
+            fh = fo
     else:
         fn = "<stdout>"
-        fo = sys.stdout
-
-    if compressed:
-        fh = gzip.GzipFile(fn, 'wb', 9, fo)
-    else:
-        fh = fo
+        fh = sys.stdout
 
     try:
         yield fh
@@ -190,8 +189,6 @@ def main():
     parser.add_argument('-j', '--output-json-file',
                         nargs='?',
                         default="-")
-    parser.add_argument('-z', '--write-compressed-file',
-                        action='store_true', default=False)
     parser.add_argument('-v', '--verbose',
                         help='increase output verbosity',
                         action='count', default=0)
@@ -213,7 +210,7 @@ def main():
                               args['pintron_align_file'],
                               args['pintron_introns_file'])
 
-    with smart_open_out(args['output_json_file'], args['write_compressed_file']) as fout:
+    with smart_open_out(args['output_json_file']) as fout:
         json.dump(results, fout)
 
 
