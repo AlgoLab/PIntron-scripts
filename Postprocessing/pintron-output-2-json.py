@@ -22,6 +22,7 @@ def smart_open_out(filename=None):
             fh = fo
     else:
         fn = "<stdout>"
+        fo = sys.stdout
         fh = sys.stdout
 
     try:
@@ -29,7 +30,7 @@ def smart_open_out(filename=None):
     finally:
         if fh is not fo:
             fh.close()
-        if fh is not sys.stdout:
+        if fo is not sys.stdout:
             fo.close()
 
 
