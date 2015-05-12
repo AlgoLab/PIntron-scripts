@@ -65,16 +65,17 @@ def main():
             lista = linea.split()
 
             # fa il filtraggio dei dati
-            nReads = int(lista[5])
+            num_reads = int(lista[5])
             intron_type = int(lista[13])
+            intron_pattern = lista[14]
             if (nReads >= N) or \
                (\
-                 (nReads >= M) and \
+                 (num_reads >= M) and \
                  (intron_type == 0 or intron_type == 1) and \
-                 (lista[14] == "GTAG" or lista[14] == "GCAG" or lista[14] == "ATAC") \
+                 (intron_pattern == "GTAG" or intron_pattern == "GCAG" or intron_pattern == "ATAC") \
             ):
                 # CHECK controllo dei parametri filtrati,
-                logging.debug(lista[5] + " " + lista[13] + " " + lista[14])
+                logging.debug(str(num_reads) + " " + str(intron_type) + " " + intron_pattern)
                 out.write(linea)
     logging.info('Program completed.')
 
