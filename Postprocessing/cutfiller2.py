@@ -242,8 +242,13 @@ def main():
             elements = line.split( "\t" )
             region_end = int( elements[ 0 ] ) -1
             region_begin = int( elements[ 1 ] ) +1
-            abs_end = int( elements[ 3 ] ) + 1
-            bed_out.write( seq_name + "\t" + elements[ 2 ] + "\t" +
+            abs_start = int( elements[ 2 ] )
+            abs_end = int( elements[ 3 ] )
+            if( seq_strand == '+' ):
+                abs_end += 1
+            else:
+                abs_start -= 1
+            bed_out.write( seq_name + "\t" + str( abs_start ) + "\t" +
                            str( abs_end ) + "\t" + "Int" + str( int_num ) + "\n"
             )
             int_num += 1
