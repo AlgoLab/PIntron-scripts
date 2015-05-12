@@ -1,5 +1,6 @@
 #!/usr/bin/python2.7
 
+import logging
 import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -9,9 +10,12 @@ import pysam
 from optparse import OptionParser
 import os
 import re
+import sys
 from progressbar import Bar, Timer, Percentage, ProgressBar
 
 def main():
+        logging.basicConfig(level=logging.INFO)
+        logging.info('Program started.')
         parser = OptionParser(description = "Split aligned read from BAM file "\
                               "according to the annotation file.",
                               usage = "%prog -b <aln_file.bam> -a <annotation_file.csv> "\
@@ -33,6 +37,10 @@ def main():
                           metavar = "<gene_name>",
                           help = "Gene name.",
                           default = "")
+        parser.add_option("-o",
+                          metavar = "<output-dir>",
+                          help = "Output (root) directory.",
+                          default = ".")
         (options, args) = parser.parse_args()
         in_bam_file = options.b
         in_region = options.r
@@ -40,21 +48,27 @@ def main():
         in_fasta_prefix_name = "Homo_sapiens.GRCh38.dna.chromosome."
         in_gene = options.g
 	in_annot_file = options.a
+        out_root_dir = options.o
 
         if not (in_bam_file and in_annot_file and in_fasta_dir):
-		print "Error: missing argument."
-		return
+		logging.error("Missing input argument(s).")
+		sys.exit(1)
 
         if (in_region != "" and in_gene != ""):
-                print "Error: specify only one option between region (-r) and gene name (-g)."
-                return
+                logging.error("Specify only one option between region (-r) and gene name (-g).")
+                sys.exit(1)
+
+        if not (os.path.exists(out_root_dir)):
+                logging.error("Output dir not found.")
+                sys.exit(1)
 
         regexp_reg = re.compile(r'^(\w+):(\d+)-(\d+)')
 	regexp_annot = re.compile(r'^([\dXY]+)\t(\d+)\t(\d+)\t([+\-])' \
 		'\tgene_id=\"(\w+)\"\tgene_version=\"(\d+)\"\tgene_name=\"([\w\-\.]+)\"')
 
         if not (os.path.exists(in_fasta_dir)):
-                print "Error: directory {0} not found.".format(in_fasta_dir)
+                logging.error("Directory " + in_fasta_dir + " not found.")
+                sys.exit(1)
 
 	in_annot = open(in_annot_file, "r")
 
@@ -71,11 +85,11 @@ def main():
                         in_start = int(region.group(2))
                         in_stop = int(region.group(3))
                 else:
-                        print "Error: wrong input region."
-                        return
+                        logging.error("Wrong input region.")
+                        sys.exit(1)
                 if (in_start > in_stop):
-                        print "Error: wring input region."
-                        return
+                        logging.error("Wrong input region.")
+                        sys.exit(1)
 
 	for a in in_annot:
 		ga = re.search(regexp_annot, a)
@@ -110,17 +124,17 @@ def main():
 				elif (match_elem[gene_name]['gene_version'] < gene_version):
 					match_elem[gene_name] = el
 				else:
-					print "WARNING: Ducplicated gene name";
-				#print a
+					logging.warn("Ducplicated gene name")
+				logging.debug(a)
 		else:
-			print "Error in parsing annotation file."
-			print a
-			return
-	print "Parsed {0} annotated genes.".format(count)
-        print "Num. of retrieved genes: {0}.".format(len(match_elem))
+			logging.error("Error in parsing annotation file.")
+			logging.error(a)
+			sys.exit(1)
+        logging.info("Parsed " + str(count) + " annotated genes.")
+        logging.info("Num. of retrieved genes: " + str(len(match_elem)))
         for k in match_elem.keys():
-                print ""
-                print "Creating gene {0}.".format(k)
+                logging.info("")
+                logging.info("Creating gene " + k)
                 r_chr = match_elem[k]['chr']
                 r_start = match_elem[k]['start'] - 1000
                 r_stop = match_elem[k]['stop'] + 1000
@@ -128,11 +142,12 @@ def main():
                 fetch_aln = in_sam.fetch(r_chr, r_start, r_stop)
                 tot_fetch_aln = in_sam.count(r_chr, r_start, r_stop)
                 if(tot_fetch_aln == 0 or tot_fetch_aln < 10):
-                        print "No valid alignments found."
+                        logging.warn("No valid alignments found.")
                         continue
 
-                if not (os.path.exists(k)):
-                        os.mkdir(k)
+                out_dir = out_root_dir + "/" + k
+                if not (os.path.exists(out_dir)):
+                        os.mkdir(out_dir)
 
                 #Compute reads
                 widgets = ['Processing: ', Percentage(),
@@ -162,8 +177,8 @@ def main():
                         record = SeqRecord(Seq(read.query_sequence, generic_dna))
                         record.id = fasta_hdr
                         record.description = ""
-                        #print fasta_hdr
-                        #print read.query_sequence
+                        logging.debug(fasta_hdr)
+                        logging.debug(read.query_sequence)
                         if not (read.is_paired):
                                 if read_name not in valid_id:
                                         num_valid_seq = num_valid_seq + 1
@@ -185,18 +200,18 @@ def main():
                                         num_disc_seq = num_disc_seq + 1
                                         discarded.append(record)
                 bar.finish()
-                out_fasta = open(k + "/" + k + ".fa", "w")
+                out_fasta = open(out_dir + "/" + k + ".fa", "w")
                 SeqIO.write(valid, out_fasta, "fasta")
                 out_fasta.close()
-                out_dis = open(k + "/" + "discarded.fa", "w")
+                out_dis = open(out_dir + "/" + "discarded.fa", "w")
                 SeqIO.write(discarded, out_dis, "fasta")
                 out_dis.close()
-                print "Num. Processed Sequences: {0}".format(num_proc_seq)
-                print "Num. Valid Sequences: {0}".format(num_valid_seq)
-                print "Num. Discarded Sequences: {0}".format(num_disc_seq)
+                logging.info("Num. Processed Sequences: " + str(num_proc_seq))
+                logging.info("Num. Valid Sequences: " + str(num_valid_seq))
+                logging.info("Num. Discarded Sequences: " + str(num_disc_seq))
 
                 #Compute genomics
-                print "Cutting genomic sequence."
+                logging.info("Cutting genomic sequence.")
                 found = True
                 sequences = []
                 seq_name = ""
@@ -204,8 +219,8 @@ def main():
                         seq_name += "chr"
                 fasta_seq_name = in_fasta_dir + "/" + in_fasta_prefix_name + r_chr + ".fa.gz"
                 if not os.path.isfile(fasta_seq_name):
-                        print "Error: file {0} does not exists.".format(fasta_seq_name)
-                        return
+                        logging.error("File " + fasta_seq_name + " not found.")
+                        sys.exit(1)
                 seq_handle = gzip.open(fasta_seq_name, "r")
                 for sequence in SeqIO.parse(seq_handle, "fasta"):
                         if (sequence.id == r_chr):
@@ -223,16 +238,17 @@ def main():
                                 #descr += " Length={0}bp.".format(len(sub_s))
                                 seqrec.description = ""
                                 sequences.append(seqrec)
-                                #print seqrec.seq
-                                print "Cut sequence of {0}bp.".format(len(sub_s))
+                                logging.debug(seqrec.seq)
+                                logging.info("Cut sequence of " + str(len(sub_s)) + "bp.")
                 if not (found):
-                        print "No sequence {0} found in {1}.".format(chr, in_fasta_file)
+                        logging.warn("No sequence " + chr + " found in " + in_fasta_file)
                 else:
-                        out_genomic = open(k + "/" + "genomic.txt", "w")
+                        out_genomic = open(out_dir + "/" + "genomic.txt", "w")
                         SeqIO.write(sequences, out_genomic, "fasta")
                         out_genomic.close()
 
         in_sam.close()
+        logging.info("Program finished.")
 
 if __name__ == '__main__':
         main()
