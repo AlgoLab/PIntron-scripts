@@ -107,6 +107,13 @@ def parse_introns(introns_stream, genomic_block, alignments):
                       'length', 'number_of_supporting_transcripts',
                       'BPS_position'):
             intron[field] = int(intron[field])
+
+        # a bug in PIntron (file predicted-introns.txt) causes to report absolute
+        # coordinates of introns on strand '+' shifted to the left of 1bp
+        if genomic_block['strand'] == "+":
+            intron['absolute_start'] = intron['absolute_start'] + 1
+            intron['absolute_end'] = intron['absolute_end'] + 1
+
         for field in ('donor_alignment_error', 'acceptor_alignment_error',
                       'donor_score', 'acceptor_score', 'BPS_score'):
             intron[field] = float(intron[field])
@@ -155,18 +162,20 @@ def parse_introns(introns_stream, genomic_block, alignments):
 
 
 def convert_to_dict(genomic_file, alignment_file, introns_file):
-    logging.debug("Parsing genomic coordinates from file '%s'", genomic_file.name)
+    logging.info("Parsing genomic coordinates from file '%s'", genomic_file.name)
     genomic_block = parse_genomic_header(genomic_file.readline().strip().lstrip(">"))
-    logging.debug("Read: %s", genomic_block)
+    logging.info("Reading results from genomic region: %s:%d:%d:%s",
+                 genomic_block["seqname"],
+                 genomic_block["start"], genomic_block["end"], genomic_block["strand"])
 
-    logging.debug("Parsing alignments from file '%s'", alignment_file.name)
+    logging.info("Parsing alignments from file '%s'", alignment_file.name)
     alignments = {alignment['identifier']: alignment
                   for alignment in pintron_alignments(alignment_file, genomic_block)}
-    logging.debug("Read %d alignments", len(alignments))
+    logging.info("Read %d alignments", len(alignments))
 
-    logging.debug("Parsing predicted introns from file '%s'", introns_file.name)
+    logging.info("Parsing predicted introns from file '%s'", introns_file.name)
     introns = parse_introns(introns_file, genomic_block, alignments)
-    logging.debug("Read %d introns", len(introns))
+    logging.info("Read %d introns", len(introns))
 
     return {'genome': genomic_block,
             'introns': introns,
@@ -174,31 +183,43 @@ def convert_to_dict(genomic_file, alignment_file, introns_file):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-g', '--pintron-genomic-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('genomic.txt'))
-    parser.add_argument('-a', '--pintron-align-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('out-after-intron-agree.txt'))
-    parser.add_argument('-i', '--pintron-introns-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('predicted-introns.txt'))
-    parser.add_argument('-j', '--output-json-file',
-                        nargs='?',
-                        default="-")
-    parser.add_argument('-v', '--verbose',
-                        help='increase output verbosity',
-                        action='count', default=0)
+    parser = argparse.ArgumentParser(
+        description="Convert PIntron results to a more convenient JSON format",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        '-g', '--pintron-genomic-file',
+        help="File containing the genomic sequence given as input to PIntron",
+        metavar="FILE",
+        type=argparse.FileType(mode='r'),
+        default='genomic.txt')
+    parser.add_argument(
+        '-a', '--pintron-align-file',
+        help="File containing the alignments computed by PIntron after the intron agreement step",
+        metavar="FILE",
+        type=argparse.FileType(mode='r'),
+        default='out-after-intron-agree.txt')
+    parser.add_argument(
+        '-i', '--pintron-introns-file',
+        help="File containing the introns predicted by PIntron",
+        metavar="FILE",
+        type=argparse.FileType(mode='r'),
+        default='predicted-introns.txt')
+    parser.add_argument(
+        '-j', '--output-json-file',
+        help="File where all the results will be printed to in JSON format",
+        metavar="FILE (or -)",
+        default="-")
+    parser.add_argument(
+        '-v', '--verbose',
+        help='increase output verbosity',
+        action='count',
+        default=0)
 
     args = parser.parse_args()
-    args = vars(args)
-    if args['verbose'] == 0:
+    if args.verbose == 0:
         log_level = logging.INFO
-    elif args['verbose'] == 1:
+    elif args.verbose == 1:
         log_level = logging.DEBUG
     else:
         log_level = logging.DEBUG
@@ -207,12 +228,15 @@ def main():
                         format='%(levelname)-8s [%(asctime)s]  %(message)s',
                         datefmt="%y%m%d %H%M%S")
 
-    results = convert_to_dict(args['pintron_genomic_file'],
-                              args['pintron_align_file'],
-                              args['pintron_introns_file'])
+    results = convert_to_dict(args.pintron_genomic_file,
+                              args.pintron_align_file,
+                              args.pintron_introns_file)
 
-    with smart_open_out(args['output_json_file']) as fout:
+    logging.info("Writing results to file '%s'", args.output_json_file)
+    with smart_open_out(args.output_json_file) as fout:
         json.dump(results, fout)
+
+    logging.info("Terminated.")
 
 
 if __name__ == "__main__":
