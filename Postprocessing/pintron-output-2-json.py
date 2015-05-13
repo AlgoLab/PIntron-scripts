@@ -107,6 +107,13 @@ def parse_introns(introns_stream, genomic_block, alignments):
                       'length', 'number_of_supporting_transcripts',
                       'BPS_position'):
             intron[field] = int(intron[field])
+
+        # a bug in PIntron (file predicted-introns.txt) causes to report absolute
+        # coordinates of introns on strand '+' shifted to the left of 1bp
+        if genomic_block['strand'] == "+":
+            intron['absolute_start'] = intron['absolute_start'] + 1
+            intron['absolute_end'] = intron['absolute_end'] + 1
+
         for field in ('donor_alignment_error', 'acceptor_alignment_error',
                       'donor_score', 'acceptor_score', 'BPS_score'):
             intron[field] = float(intron[field])
