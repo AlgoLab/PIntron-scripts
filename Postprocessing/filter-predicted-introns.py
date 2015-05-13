@@ -8,9 +8,6 @@ import json
 import gzip
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-    logging.info('Program started.')
-
     #creazione del parser di input da linea di comando
     parser = argparse.ArgumentParser(prog = "predicted-introns-filtered",
                                       description = "Filtering intron from predicted-introns",
@@ -23,8 +20,23 @@ def main():
                          required = False, dest = 'nValue', type = int, default = 20)
     parser.add_argument('-m', '--minimum-canonic-reads', help = ' Minimum canonic reads and',
                          required = False, dest = 'minimum', type = int)
+    parser.add_argument('-v', '--verbose',
+                        help='increase output verbosity',
+                        action='count', default=0)
     args = parser.parse_args()
 
+    if args.verbose == 0:
+        log_level = logging.INFO
+    elif args.verbose == 1:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.DEBUG
+
+    logging.basicConfig(level=log_level,
+                        format='%(levelname)-8s [%(asctime)s]  %(message)s',
+                        datefmt="%y%m%d %H%M%S")
+
+    logging.info("predicted-introns-filtered: Program Started")
     # controllo che il predicted-introns e il file di output sia specificato dall'utente
     # sia che il controllo fallisca, sia che il controllo vada a buon fine scrive sul file di LOG
     # In entrambi i casi scrive l'indirizzo assoluto del file sul file di LOG'
@@ -103,7 +115,7 @@ def main():
     jdata['introns'] = new_introns
     json.dump(jdata, out)
     
-    logging.info('Program completed.')
+    logging.info("predicted-introns-filtered: Program Completed")
 
 if __name__ == "__main__":
     main()
