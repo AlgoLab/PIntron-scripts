@@ -6,11 +6,39 @@ import argparse
 import logging
 import glob
 import os.path
+import contextlib
+import json
+import sys
+import itertools
+import gzip
 
 ##
 
 
 VALID_SEQNAMES = [str(x) for x in range(1, 22)] + ["X", "Y", "MT"]
+
+
+@contextlib.contextmanager
+def smart_open_in(filename=None):
+    if filename and filename != '-':
+        fn = filename
+        fo = open(filename, 'r')
+        if filename.endswith(".gz"):
+            fh = gzip.GzipFile(fn, 'rb', 9, fo)
+        else:
+            fh = fo
+    else:
+        fn = "<stdout>"
+        fo = sys.stdin
+        fh = sys.stdin
+
+    try:
+        yield fh
+    finally:
+        if fh is not fo:
+            fh.close()
+        if fo is not sys.stdin:
+            fo.close()
 
 
 class GTFRecord:
@@ -72,8 +100,9 @@ def filter_attributes(attr_name, attr_values):
 
 
 def exons2introns(exons):
-    return [(e1.end+1, e2.start-1) for e1, e2 in zip(exons[:-1], exons[1:])]
-
+    sexons = sorted(exons)
+    return set([(e1[1]+1, e2[0]-1)
+                for e1, e2 in zip(sexons[:-1], sexons[1:])])
 
 class Transcript:
     def __init__(self, gene, transcript_id=None):
@@ -91,21 +120,24 @@ class Transcript:
     def introns(self):
         return exons2introns(self.exons)
 
-    def is_predicted(self, exon_list):
+    def is_predicted(self, exon_set, intron_set):
         logging.debug("Testing if %s is predicted.", self.transcript_id)
-        cond_a = True
-        cond_b = all([(exon[0], exon[1]) in exon_list
+        logging.debug("MY: %s", set(self.introns()))
+        logging.debug("PR: %s", intron_set)
+        cond_a = set(self.introns()) <= intron_set
+        cond_b = all([(exon[0], exon[1]) in exon_set
                       for exon in self.exons[1:-1]])
         first_exon_idx = 0 if self.gene.strand == "+" else -1
         last_exon_idx = -1 if self.gene.strand == "+" else 0
-        cond_c = ((self.exons[first_exon_idx] in exon_list) or
-                  (self.exons[first_exon_idx][1] in [e[1] for e in exon_list]))
-        cond_d = ((self.exons[last_exon_idx] in exon_list) or
-                  (self.exons[last_exon_idx][0] in [e[0] for e in exon_list]))
+        cond_c = ((self.exons[first_exon_idx] in exon_set) or
+                  (self.exons[first_exon_idx][1] in [e[1] for e in exon_set]))
+        cond_d = ((self.exons[last_exon_idx] in exon_set) or
+                  (self.exons[last_exon_idx][0] in [e[0] for e in exon_set]))
         logging.debug("is_predicted cond_a? %s", cond_a)
         logging.debug("is_predicted cond_b? %s", cond_b)
         logging.debug("is_predicted cond_c? %s", cond_c)
         logging.debug("is_predicted cond_d? %s", cond_d)
+        logging.debug("     ===>            %s", cond_a and cond_b and cond_c and cond_d)
         return cond_a and cond_b and cond_c and cond_d
 
 
@@ -128,47 +160,12 @@ class Gene:
         )
 
 
-import itertools
-import gzip
+def subdirs_with_file(root_dir, filename):
+    files = glob.glob(os.path.join(root_dir, "*", filename))
+    return set([os.path.dirname(f) for f in files])
 
 
-def main():
-    pred_folder = "predictions"
-    pred_file = "predicted-exons-filtered.gtf"
-    annot_gtf = "Homo_sapiens.GRCh38.78.gtf.gz"
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('gene',
-                        nargs='+')
-    parser.add_argument('-p', '--prediction-root-dir',
-                        default=pred_folder)
-    parser.add_argument('-a', '--annotations',
-                        default=annot_gtf)
-    parser.add_argument('--prediction-filename',
-                        default=pred_file)
-    parser.add_argument('-v', '--verbose',
-                        help='increase output verbosity',
-                        action='count', default=0)
-
-    args = parser.parse_args()
-    args = vars(args)
-    if args['verbose'] == 0:
-        log_level = logging.INFO
-    elif args['verbose'] == 1:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.DEBUG
-
-    logging.basicConfig(level=log_level,
-                        format='%(levelname)-8s [%(asctime)s]  %(message)s',
-                        datefmt="%y%m%d %H%M%S")
-
-    pred_folder = args["prediction_root_dir"]
-    pred_file = args["prediction_filename"]
-    annot_gtf = args["annotations"]
-
-    gene_names = args["gene"]
-
+def load_annotations(gene_names, annot_gtf):
     filter_fn = filter_all((filter_attributes("gene_name", gene_names),
                             filter_seqnames(),
                             filter_sources(),
@@ -176,7 +173,7 @@ def main():
 
     logging.info("Reading annotations from '%s'...", annot_gtf)
     genes = {}
-    with gzip.open(annot_gtf) as gtfin:
+    with smart_open_in(annot_gtf) as gtfin:
         for record in itertools.ifilter(filter_fn,
                                         gtf_parser(gtfin)):
             if record.attributes["gene_id"] not in genes:
@@ -194,36 +191,123 @@ def main():
 
             transcript.exons.append((record.start, record.end,
                                      record.attributes["exon_id"]))
+    logging.info("Loaded annotations of %d genes.", len(genes))
+    return genes
+
+
+def load_predicted_exons(predfin, gene_name, gene):
+    pred_exons = []
+    for record in gtf_parser(predfin, "="):
+        assert record.seqname == gene.seqname, \
+            "Gene {} is on sequence {} but predictions are on sequence {}." + \
+            "Read: {}".format(gene_name,
+                              gene.seqname,
+                              record.seqname,
+                              str(record))
+        pred_exons.append((record.start, record.end))
+    return set(pred_exons)
+
+
+def main():
+    def clean_introns(intron_rich_list):
+        return set([(i["absolute_start"], i["absolute_end"]) for i in intron_rich_list])
+
+    pred_folder = "predictions"
+    pred_file = "predicted-exons-filtered.gtf"
+    results_file = "output.filtered.json.gz"
+    output_file = "comparison.csv"
+    annot_gtf = "Homo_sapiens.GRCh38.78.gtf.gz"
+
+    parser = argparse.ArgumentParser(
+        description="Compare PIntron predictions with the annotations",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        'gene',
+        help="Name of the gene(s) to analyze",
+        nargs='+')
+    parser.add_argument(
+        '-p', '--prediction-root-dir',
+        help="Name of the directory where all the predictions are stored",
+        metavar="DIR",
+        default=pred_folder)
+    parser.add_argument(
+        '-a', '--annotations',
+        help="File containing the annotations",
+        metavar="GTF_FILE",
+        default=annot_gtf)
+    parser.add_argument(
+        '-f', '--prediction-filename',
+        help="File containing the predicted exons",
+        metavar="GTF_FILE",
+        default=pred_file)
+    parser.add_argument(
+        '-j', '--results-json-filename',
+        help="File containing the results computed by PIntron in JSON format",
+        metavar="JSON_FILE",
+        default=results_file)
+    parser.add_argument(
+        '-o', '--output-filename',
+        help="File where the results of the comparison will be written to",
+        metavar="CSV_FILE",
+        default=output_file)
+    parser.add_argument(
+        '-v', '--verbose',
+        help='increase output verbosity',
+        action='count', default=0)
+
+    args = parser.parse_args()
+    if args.verbose == 0:
+        log_level = logging.INFO
+    elif args.verbose == 1:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.DEBUG
+
+    logging.basicConfig(level=log_level,
+                        format='%(levelname)-8s [%(asctime)s]  %(message)s',
+                        datefmt="%y%m%d %H%M%S")
+
+    pred_folder = args.prediction_root_dir
+    pred_file = args.prediction_filename
+    results_file = args.results_json_filename
+    output_file = args.output_filename
+    annot_gtf = args.annotations
+
+    gene_names = args.gene
+
+    genes = load_annotations(gene_names, annot_gtf)
 
     logging.info("Performing comparisons...")
     for gene in genes.values():
         logging.info("Gene: %s", gene.gene_name)
         gene_name = gene.gene_name
-        with open("report-"+gene_name+".csv", "w") as repfout:
-            for pred_name in glob.glob(os.path.join(pred_folder,
-                                                    gene_name,
-                                                    "*",
-                                                    pred_file)):
-                pred_exons = []
-                dataset_name = os.path.basename(os.path.dirname(pred_name))
+        gene_dir = os.path.join(pred_folder, gene_name)
+        full_output_file = os.path.join(gene_dir, output_file)
+        logging.info("Writing the results of the comparison to file '%s'", full_output_file)
+        # Get directories with both results and exons
+        with open(full_output_file, "w") as repfout:
+            dirs = list(subdirs_with_file(gene_dir, pred_file) &
+                        subdirs_with_file(gene_dir, results_file))
+            for cdir in dirs:
+                dataset_name = os.path.basename(cdir)
                 dataset_name = dataset_name.replace("_", ",")
-                logging.info("  Prediction: %s", pred_name)
-                with open(pred_name) as predfin:
-                    for record in gtf_parser(predfin, "="):
-                        assert record.seqname == gene.seqname, \
-                            "Gene {} is on sequence {} but predictions are on sequence {}." + \
-                            "Read: {}".format(gene_name,
-                                              gene.seqname,
-                                              record.seqname,
-                                              str(record))
-                        pred_exons.append((record.start, record.end))
+                logging.info("Dataset: %s", dataset_name)
+                pred_fn = os.path.join(cdir, pred_file)
+                res_fn = os.path.join(cdir, results_file)
+                logging.info("Reading predicted exons from file '%s' " +
+                             "and results from file '%s'",
+                             pred_fn, res_fn)
+                with open(pred_fn, "r") as predfin, smart_open_in(res_fn) as resfin:
+                    pred_exons = load_predicted_exons(predfin, gene_name, gene)
+                    pred_introns = clean_introns(json.load(resfin)["introns"])
 
-                for transcript in gene.transcripts.values():
-                    print(",".join([gene.gene_id, gene.gene_name,
-                                    transcript.transcript_id,
-                                    dataset_name,
-                                    str(transcript.is_predicted(pred_exons))]),
-                          file=repfout)
+                    for transcript in gene.transcripts.values():
+                        print(",".join([gene.gene_id, gene.gene_name,
+                                        transcript.transcript_id,
+                                        dataset_name,
+                                        str(transcript.is_predicted(pred_exons, pred_introns))]),
+                              file=repfout)
 
 
 if __name__ == "__main__":
