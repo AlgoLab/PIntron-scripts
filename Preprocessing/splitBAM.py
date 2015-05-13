@@ -262,7 +262,7 @@ def main():
                         out_genomic.close()
 
         in_sam.close()
-        logging.info("splitBAM: Program Started")
+        logging.info("splitBAM: Program Completed")
 
 if __name__ == '__main__':
         main()

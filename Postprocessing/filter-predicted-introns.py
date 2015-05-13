@@ -12,8 +12,8 @@ def main():
     parser = argparse.ArgumentParser(prog = "predicted-introns-filtered",
                                       description = "Filtering intron from predicted-introns",
                                       formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', '--predicted-introns', help = "Predicted-introns file in JSON format.",
-                         required = False, dest = 'pfile')
+    parser.add_argument('-j', '--json-introns', help = "Predicted-introns file in JSON format.",
+                         required = False, dest = 'jfile')
     parser.add_argument('-o', '--output-file', help = "Name of the output file in JSON format.",
                          required = False, dest = 'wfile')
     parser.add_argument('-n', '--filter-value', help = ' Filter value',
@@ -44,11 +44,11 @@ def main():
         logging.error('No predicted-introns file given.\nAborting...')
         sys.exit(1)
 
-    if not (args.pfile.endswith(".json") or args.pfile.endswith(".gz")):
+    if not (args.jfile.endswith(".json") or args.jfile.endswith(".gz")):
         logging.error('Input file name must be a JSON (or GZ).\nAborting...')
         sys.exit(1)
 
-    logging.info('Predicted-introns file: ' + args.pfile)
+    logging.info('Input JSON file: ' + args.jfile)
 
     if not args.wfile:
         logging.error('No output file specified.\nAborting...')
@@ -77,12 +77,12 @@ def main():
     logging.info('Minimum reads: ' + str(M))
 
     jdata = {}
-    if args.pfile.endswith(".gz"):
-       with gzip.open(args.pfile, 'rb') as jfile:
-           jdata = json.loads(jfile.read().decode("ascii"))
+    if args.jfile.endswith(".gz"):
+       with gzip.open(args.jfile, 'rb') as json_file:
+           jdata = json.loads(json_file.read().decode("ascii"))
     else:
-        with open(args.pfile, 'r') as jfile:
-            jdata = json.load(jfile)
+        with open(args.jfile, 'r') as json_file:
+            jdata = json.load(json_file)
     # print jdata
 
     if args.wfile.endswith(".gz"):
