@@ -181,31 +181,39 @@ def convert_to_dict(genomic_file, alignment_file, introns_file):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-g', '--pintron-genomic-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('genomic.txt'))
-    parser.add_argument('-a', '--pintron-align-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('out-after-intron-agree.txt'))
-    parser.add_argument('-i', '--pintron-introns-file',
-                        nargs='?',
-                        type=argparse.FileType(mode='r'),
-                        default=open('predicted-introns.txt'))
-    parser.add_argument('-j', '--output-json-file',
-                        nargs='?',
-                        default="-")
-    parser.add_argument('-v', '--verbose',
-                        help='increase output verbosity',
-                        action='count', default=0)
+    parser = argparse.ArgumentParser(
+        description="Convert PIntron results to a more convenient JSON format",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        '-g', '--pintron-genomic-file',
+        help="File containing the genomic sequence given as input to PIntron",
+        type=argparse.FileType(mode='r'),
+        default='genomic.txt')
+    parser.add_argument(
+        '-a', '--pintron-align-file',
+        help="File containing the alignments computed by PIntron after the intron agreement step",
+        type=argparse.FileType(mode='r'),
+        default='out-after-intron-agree.txt')
+    parser.add_argument(
+        '-i', '--pintron-introns-file',
+        type=argparse.FileType(mode='r'),
+        help="File containing the introns predicted by PIntron",
+        default='predicted-introns.txt')
+    parser.add_argument(
+        '-j', '--output-json-file',
+        help="File where all the results will be printed to in JSON format",
+        default="-")
+    parser.add_argument(
+        '-v', '--verbose',
+        help='increase output verbosity',
+        action='count',
+        default=0)
 
     args = parser.parse_args()
-    args = vars(args)
-    if args['verbose'] == 0:
+    if args.verbose == 0:
         log_level = logging.INFO
-    elif args['verbose'] == 1:
+    elif args.verbose == 1:
         log_level = logging.DEBUG
     else:
         log_level = logging.DEBUG
@@ -214,11 +222,11 @@ def main():
                         format='%(levelname)-8s [%(asctime)s]  %(message)s',
                         datefmt="%y%m%d %H%M%S")
 
-    results = convert_to_dict(args['pintron_genomic_file'],
-                              args['pintron_align_file'],
-                              args['pintron_introns_file'])
+    results = convert_to_dict(args.pintron_genomic_file,
+                              args.pintron_align_file,
+                              args.pintron_introns_file)
 
-    with smart_open_out(args['output_json_file']) as fout:
+    with smart_open_out(args.output_json_file) as fout:
         json.dump(results, fout)
 
 
