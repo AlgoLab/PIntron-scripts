@@ -7,6 +7,7 @@ import argparse
 import numpy
 import pysam
 import json
+import gzip
 
 def is_unique(region, offset):
     """
@@ -163,6 +164,8 @@ def main():
     if not args.json_file:
         logging.error('No JSON file given.\nAborting...')
         sys.exit(1)
+
+    logging.info("Cutfiller2: Program Started")
 
     logging.info("==> OPENING JSON FILE")
     jdata = {}
@@ -337,7 +340,7 @@ def main():
                 print s
                 exon_id += 1
 
-    logging.info("==> PROCESS COMPLETE")
+    logging.info("Cutfiller2: Program Completed")
         
 
 if __name__ == "__main__":

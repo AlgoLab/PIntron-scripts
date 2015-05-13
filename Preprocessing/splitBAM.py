@@ -14,8 +14,6 @@ import sys
 from progressbar import Bar, Timer, Percentage, ProgressBar
 
 def main():
-        logging.basicConfig(level=logging.INFO)
-        logging.info('Program started.')
         parser = OptionParser(description = "Split aligned read from BAM file "\
                               "according to the annotation file.",
                               usage = "%prog -b <aln_file.bam> -a <annotation_file.csv> "\
@@ -41,6 +39,9 @@ def main():
                           metavar = "<output-dir>",
                           help = "Output (root) directory.",
                           default = ".")
+        parser.add_argument('-v', '--verbose',
+                        help='increase output verbosity',
+                        action='count', default=0)
         (options, args) = parser.parse_args()
         in_bam_file = options.b
         in_region = options.r
@@ -49,6 +50,17 @@ def main():
         in_gene = options.g
 	in_annot_file = options.a
         out_root_dir = options.o
+
+        if args.verbose == 0:
+                log_level = logging.INFO
+        elif args.verbose == 1:
+                log_level = logging.DEBUG
+        else:
+                log_level = logging.DEBUG
+
+        logging.basicConfig(level=log_level,
+                            format='%(levelname)-8s [%(asctime)s]  %(message)s',
+                            datefmt="%y%m%d %H%M%S")
 
         if not (in_bam_file and in_annot_file and in_fasta_dir):
 		logging.error("Missing input argument(s).")
@@ -69,6 +81,8 @@ def main():
         if not (os.path.exists(in_fasta_dir)):
                 logging.error("Directory " + in_fasta_dir + " not found.")
                 sys.exit(1)
+
+        logging.info("splitBAM: Program Started")
 
 	in_annot = open(in_annot_file, "r")
 
@@ -248,7 +262,7 @@ def main():
                         out_genomic.close()
 
         in_sam.close()
-        logging.info("Program finished.")
+        logging.info("splitBAM: Program Started")
 
 if __name__ == '__main__':
         main()
