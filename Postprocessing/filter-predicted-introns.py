@@ -40,7 +40,7 @@ def main():
     # controllo che il predicted-introns e il file di output sia specificato dall'utente
     # sia che il controllo fallisca, sia che il controllo vada a buon fine scrive sul file di LOG
     # In entrambi i casi scrive l'indirizzo assoluto del file sul file di LOG'
-    if not args.pfile :
+    if not args.jfile :
         logging.error('No predicted-introns file given.\nAborting...')
         sys.exit(1)
 
