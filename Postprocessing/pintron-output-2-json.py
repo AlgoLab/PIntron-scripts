@@ -190,21 +190,25 @@ def main():
     parser.add_argument(
         '-g', '--pintron-genomic-file',
         help="File containing the genomic sequence given as input to PIntron",
+        metavar="FILE",
         type=argparse.FileType(mode='r'),
         default='genomic.txt')
     parser.add_argument(
         '-a', '--pintron-align-file',
         help="File containing the alignments computed by PIntron after the intron agreement step",
+        metavar="FILE",
         type=argparse.FileType(mode='r'),
         default='out-after-intron-agree.txt')
     parser.add_argument(
         '-i', '--pintron-introns-file',
-        type=argparse.FileType(mode='r'),
         help="File containing the introns predicted by PIntron",
+        metavar="FILE",
+        type=argparse.FileType(mode='r'),
         default='predicted-introns.txt')
     parser.add_argument(
         '-j', '--output-json-file',
         help="File where all the results will be printed to in JSON format",
+        metavar="FILE (or -)",
         default="-")
     parser.add_argument(
         '-v', '--verbose',
