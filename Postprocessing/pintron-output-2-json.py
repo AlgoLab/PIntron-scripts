@@ -162,18 +162,20 @@ def parse_introns(introns_stream, genomic_block, alignments):
 
 
 def convert_to_dict(genomic_file, alignment_file, introns_file):
-    logging.debug("Parsing genomic coordinates from file '%s'", genomic_file.name)
+    logging.info("Parsing genomic coordinates from file '%s'", genomic_file.name)
     genomic_block = parse_genomic_header(genomic_file.readline().strip().lstrip(">"))
-    logging.debug("Read: %s", genomic_block)
+    logging.info("Reading results from genomic region: %s:%d:%d:%s",
+                 genomic_block["seqname"],
+                 genomic_block["start"], genomic_block["end"], genomic_block["strand"])
 
-    logging.debug("Parsing alignments from file '%s'", alignment_file.name)
+    logging.info("Parsing alignments from file '%s'", alignment_file.name)
     alignments = {alignment['identifier']: alignment
                   for alignment in pintron_alignments(alignment_file, genomic_block)}
-    logging.debug("Read %d alignments", len(alignments))
+    logging.info("Read %d alignments", len(alignments))
 
-    logging.debug("Parsing predicted introns from file '%s'", introns_file.name)
+    logging.info("Parsing predicted introns from file '%s'", introns_file.name)
     introns = parse_introns(introns_file, genomic_block, alignments)
-    logging.debug("Read %d introns", len(introns))
+    logging.info("Read %d introns", len(introns))
 
     return {'genome': genomic_block,
             'introns': introns,
@@ -226,8 +228,11 @@ def main():
                               args.pintron_align_file,
                               args.pintron_introns_file)
 
+    logging.info("Writing results to file '%s'", args.output_json_file)
     with smart_open_out(args.output_json_file) as fout:
         json.dump(results, fout)
+
+    logging.info("Terminated.")
 
 
 if __name__ == "__main__":
