@@ -39,7 +39,7 @@ def main():
                           metavar = "<output-dir>",
                           help = "Output (root) directory.",
                           default = ".")
-        parser.add_argument('-v', '--verbose',
+        parser.add_option('-v',
                         help='increase output verbosity',
                         action='count', default=0)
         (options, args) = parser.parse_args()
@@ -51,9 +51,9 @@ def main():
 	in_annot_file = options.a
         out_root_dir = options.o
 
-        if args.verbose == 0:
+        if options.v == 0:
                 log_level = logging.INFO
-        elif args.verbose == 1:
+        elif options.v == 1:
                 log_level = logging.DEBUG
         else:
                 log_level = logging.DEBUG
