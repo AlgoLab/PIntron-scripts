@@ -6,6 +6,7 @@ import os
 import argparse
 import numpy
 import pysam
+import json
 
 def is_unique(region, offset):
     """
@@ -133,134 +134,110 @@ def grow_left(region, offset, max_gap):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(prog = "cutfiller",
                                       description = "Rebuild exons from PIntron output.",
                                       formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', '--pintron-output', help = "PIntron output file",
-                         required = True, dest = 'pfile')
-    parser.add_argument('-a', '--alignment-file', help = 'Alignment file (PIntron)',
-                         required = False, dest = 'alfile')
-    parser.add_argument('-s', '--sam-file', help = 'Alignment file (sam format)',
-                         required = False, dest = 'samfile')
-    parser.add_argument('-f', '--fasta-file', help = 'Fasta file of the reference sequence',
-                         required = True, dest = 'fastafile')
+    parser.add_argument('-j', '--json-output', help = "Full output in JSON format.",
+                        required = True, dest = 'json_file')
     parser.add_argument('-l', '--max-intron-length',
                          help = 'Max intron length accepted. Introns that exceed this value will be discarded',
                          required = False, dest = 'maxIntron', type = int, default = 100000)
     parser.add_argument('-g', '--gap-ends', help = 'Gap threshold at exon ends for their computation.',
                          required = False, dest = 'gapEnds', type = int, default = 3)
+    parser.add_argument('-v', '--verbose',
+                        help='increase output verbosity',
+                        action='count', default=0)
     args = parser.parse_args()
 
-    if not args.alfile and not args.samfile:
-        logging.error('ERROR: No samfile given and no PIntron alignment file given.\nAborting...')
-        sys.exit(1)
-    if args.alfile and args.samfile:
-        logging.error('ERROR: Both samfile and PIntron alignment files given.\nAborting...')
-        sys.exit(1)
-
-    logging.info("==> OPENING FASTA FILE")
-    with open(args.fastafile, 'r') as inFasta:
-        for line in inFasta.readlines():
-            if line.startswith(">"):
-                elements = line.rstrip().split(':')
-                seq_name = elements[ 0 ].replace(">", "")
-                seq_start = int(elements[ 1 ])
-                seq_end = int(elements[ 2 ])
-                seq_strand = elements[ 3 ].replace("1", "")
-                break
-        logging.debug("Name: {0}, Start: {1}, End: {2}, Strand: {3}".format(seq_name, seq_start, seq_end, seq_strand))
-
-    logging.info("==> OPENING ALIGNMENT FILE")
-    # Open PIntron alignment file and build the tree
-    align_index = 0
-    if args.alfile:
-        with open(args.alfile, 'r') as inInts:
-            for line in inInts.readlines():
-                if not line.startswith(">") and not line.startswith("#"):
-                    elements = line.split(' ')
-                    begin = int(elements[ 2 ])
-                    end = int(elements[ 3 ])
-                    if(align_index == 0):
-                        min_aln_pos = begin
-                        max_aln_pos = end
-                    if begin < min_aln_pos:
-                        min_aln_pos = begin
-                    if end > max_aln_pos:
-                        max_aln_pos = end
-                    align_index += 1
-            cov_reads = numpy.zeros(max_aln_pos - min_aln_pos + 1, dtype=numpy.uint32)
-            inInts.seek(0)
-            align_index = 0
-            for line in inInts.readlines():
-                if not line.startswith(">") and not line.startswith("#"):
-                    #print >> sys.stderr, "{0:<50}\r".format("==> PROCESSING ALIGNMENT NUMBER {0:<10}".format(align_index)),
-                    elements = line.split(' ')
-                    begin = int(elements[ 2 ])
-                    end = int(elements[ 3 ])
-                    cov_reads[ begin - min_aln_pos : end - min_aln_pos + 1 ] += 1
-                    align_index += 1
-            logging.info("==> PROCESSED {0} ALIGNMENTS".format(align_index))
-    elif args.samfile:
-        with open(args.samfile, 'r') as inSam:
-            samfile = pysam.Samfile(args.samfile)
-            for align in samfile:
-                begin = int(align.pos)
-                end = begin + int(align.qlen)
-                if(align_index == 0):
-                    min_aln_pos = begin
-                    max_aln_pos = end
-                if begin < min_aln_pos:
-                    min_aln_pos = begin
-                if end > max_aln_pos:
-                    max_aln_pos = end
-                align_index += 1
-            cov_reads = numpy.zeros(max_aln_pos - min_aln_pos + 1, dtype=numpy.uint32)
-            inSam.seek(0)
-            align_index = 0
-            for align in samfile:
-                #print >> sys.stderr, "{0:<50}\r".format("==> PROCESSING ALIGNMENT NUMBER {0:<10}".format(align_index)),
-                begin = int(align.pos)
-                end = begin + int(align.qlen)
-                cov_reads[ begin - min_aln_pos : end - min_aln_pos + 1 ] += 1
-                align_index += 1
-            logging.info("==> PROCESSED {0} ALIGNMENTS".format(align_index))
+    if args.verbose == 0:
+        log_level = logging.INFO
+    elif args.verbose == 1:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.DEBUG
+        
+    logging.basicConfig(level=log_level,
+                        format='%(levelname)-8s [%(asctime)s]  %(message)s',
+                        datefmt="%y%m%d %H%M%S")
     
+    if not args.json_file:
+        logging.error('No JSON file given.\nAborting...')
+        sys.exit(1)
+
+    logging.info("==> OPENING JSON FILE")
+    jdata = {}
+    if args.json_file.endswith(".gz"):
+       with gzip.open(args.json_file, 'rb') as jfile:
+           jdata = json.loads(jfile.read().decode("ascii"))
+    else:
+        with open(args.json_file, 'r') as jfile:
+            jdata = json.load(jfile)
+
+    logging.info("==> PROCESSING GENOME DATA")
+    genome = jdata['genome']
+    seq_name = genome['seqname']
+    seq_start = genome['start']
+    seq_end = genome['end']
+    seq_strand = genome['strand']
+    logging.debug("Name: {0}, Start: {1}, End: {2}, Strand: {3}".format(seq_name, seq_start, seq_end, seq_strand))
+
+    logging.info("==> PROCESSING ALIGNMENT DATA")
+    aln = jdata['alignments']
+    align_index = 0
+    for a in aln.keys():
+        logging.debug("Aln Id: " + aln[a]['identifier'])
+        for b in aln[a]['blocks']:
+            logging.debug(str(b['genomic_relative_start']) + " " + str(b['genomic_relative_end']))
+            logging.debug(str(b['genomic_absolute_start']) + " " + str(b['genomic_absolute_end']))
+            r_start = b['genomic_relative_start']
+            r_end = b['genomic_relative_end']
+            abs_start = b['genomic_absolute_start']
+            abs_end = b['genomic_absolute_end']
+            if(align_index == 0):
+                min_aln_pos = r_start
+                max_aln_pos = r_end
+            if r_start < min_aln_pos:
+                min_aln_pos = r_start
+            if r_end > max_aln_pos:
+                max_aln_pos = r_end
+            align_index += 1
+    cov_reads = numpy.zeros(max_aln_pos - min_aln_pos + 1, dtype=numpy.uint32)
+    align_index = 0
+    for a in aln.keys():
+        for b in aln[a]['blocks']:
+            r_start = b['genomic_relative_start']
+            r_end = b['genomic_relative_end']
+            abs_start = b['genomic_absolute_start']
+            abs_end = b['genomic_absolute_end']
+            cov_reads[ r_start - min_aln_pos : r_end - min_aln_pos + 1 ] += 1
+            align_index += 1
+    logging.info("==> PROCESSED " + str(align_index) + " ALIGNMENTS")
     logging.debug("Min: {0} -- Max: {1}".format(min_aln_pos, max_aln_pos))
-    logging.debug("Size: {0}".format(len(cov_reads)))
+    logging.debug("Size: " + str(len(cov_reads)))
 
     five_p_sites = []
     five_p_sites_no_exons = []
     three_p_sites = []
     three_p_sites_no_exons = []
-    bed_file_name = os.path.splitext(args.pfile)[ 0 ] + ".bed"
-    logging.debug("Bed file: " +  bed_file_name)
-    logging.info("==> OPENING SPLICE SITE FILE: {0}".format(args.pfile))
+
+    logging.info("==> PROCESSING INTRON DATA")
     int_num = 1
-    with open(args.pfile, 'r') as inIntrons, open (bed_file_name, 'w') as bed_out:
-        for line in inIntrons.readlines():
-            elements = line.split("\t")
-            region_end = int(elements[ 0 ]) -1
-            region_begin = int(elements[ 1 ]) +1
-            abs_start = int(elements[ 2 ])
-            abs_end = int(elements[ 3 ])
-            if(seq_strand == '+'):
-                abs_end += 1
-            else:
-                abs_start -= 1
-            bed_out.write(seq_name + "\t" + str(abs_start) + "\t" +
-                           str(abs_end) + "\t" + "Int" + str(int_num) + "\n"
-           )
-            int_num += 1
-            if abs(region_begin - region_end) <  args.maxIntron:
-                if region_end not in five_p_sites:
-                    five_p_sites.append(region_end)
-                    five_p_sites_no_exons.append (region_end)
-                if region_begin not in three_p_sites:
-                    three_p_sites.append(region_begin)
-                    three_p_sites_no_exons.append(region_begin)
-            else:
-                logging.info("==> INTRON TOO LARGE: [{0}, {1}]".format(region_begin, region_end))
+    introns = jdata['introns']
+    for i in introns:
+        region_end = i['relative_start'] - 1
+        region_begin = i['relative_end'] + 1
+        abs_start = i['absolute_start']
+        abs_end = i['absolute_end']
+        int_num += 1
+        if abs(region_begin - region_end) <  args.maxIntron:
+            if region_end not in five_p_sites:
+                five_p_sites.append(region_end)
+                five_p_sites_no_exons.append (region_end)
+            if region_begin not in three_p_sites:
+                three_p_sites.append(region_begin)
+                three_p_sites_no_exons.append(region_begin)
+        else:
+            logging.info("==> INTRON TOO LARGE: [{0}, {1}]".format(region_begin, region_end))
 
     three_p_sites = sorted(list(set(three_p_sites)))
     five_p_sites = sorted(list(set(five_p_sites)))
@@ -359,7 +336,7 @@ def main():
                                  ])
                 print s
                 exon_id += 1
-    
+
     logging.info("==> PROCESS COMPLETE")
         
 
