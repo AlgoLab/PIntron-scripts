@@ -1,19 +1,21 @@
 #!/usr/bin/env Rscript
 
+## if needed:
+#install.packages(c("tidyr", "dplyr", "reshape2", "pheatmap"))
+
 library(tidyr)
 library(dplyr)
 library(reshape2)
 library(pheatmap)
 
+
+
 patients <- c("P152", "P174", "P209")
 timepoints <- c("T0", "T12", "T24", "T48", "T96")
 
-
-args <- commandArgs(trailingOnly = TRUE)
-all.df <- NULL
-for (gene.name in args) {
-    print(gene.name)
-    df <- read.csv(paste("report-", gene.name, ".csv", sep=""), header=FALSE, stringsAsFactors=FALSE)
+load.single.report <- function(report.filename) {
+    message("Loading report from ", report.filename)
+    df <- read.csv(report.filename, header=FALSE, stringsAsFactors=FALSE)
     colnames(df) <- c("Gene ID", "Gene Name", "Transcript Name", "Patient", "Timepoint", "Value")
 
     df$Value[df$Value == "True"] <- "1"
@@ -34,36 +36,44 @@ for (gene.name in args) {
     }
 
     df$Dataset <- paste(df$Patient, df$Timepoint)
-    all.df <- if(is.null(all.df)) df else rbind(all.df, df)
+    df
 }
 
-df.wide <- (    all.df
-            %>% select(-`Gene ID`, -`Gene Name`, -`Dataset`)
-            %>% dcast(`Transcript Name` ~ `Timepoint` + `Patient`)
-            )
-rownames(df.wide) <- df.wide$`Transcript Name`
-df.wide$`Transcript Name` <- NULL
-df.wide.mat <- as.matrix(df.wide)
-#df.wide.mat
+produce.heatmap <- function(df, out.filename) {
+    message("Printing heatmap to file ", out.filename)
+    df.wide <- (    df
+                %>% dplyr::select(-`Gene ID`, -`Gene Name`, -`Dataset`)
+                %>% dcast(`Transcript Name` ~ `Timepoint` + `Patient`, value.var="Value")
+                )
+    rownames(df.wide) <- df.wide$`Transcript Name`
+    df.wide$`Transcript Name` <- NULL
+    df.wide.mat <- as.matrix(df.wide)
+    png(filename=out.filename,
+        width=800,
+        height=max(400, 40*length(unique(df$`Transcript Name`))))
+    pheatmap(df.wide.mat,
+             color=c("#AA3939", "#2D882D"),
+             cluster_cols=FALSE,
+             cluster_rows=length(unique(df$`Transcript Name`))>1,
+             gaps_col=(1:(length(timepoints)-1))*length(patients),
+             breaks=c(0, 0.5, 1),
+             legend_breaks=c(0.25, 0.75),
+             legend_labels=c("Missing", "Present"),
+             treeheight_row=0,
+             display_numbers=T,
+             number_format="%d",
+             fontsize=14,
+             number_color="white", fontsize_number=11,
+             main=paste("Gene: ", unique(df$`Gene Name`),
+                 " [", unique(df$`Gene ID`), "]", sep=""),
+             )
+    dev.off()
+    invisible(NULL)
+}
 
-
-png(filename=paste("report-", paste(args, collapse="_"), ".png", sep=""),
-    width=800,
-    height=max(400, 40*length(unique(all.df$`Transcript Name`))))
-pheatmap(df.wide.mat,
-         color=c("#AA3939", "#2D882D"),
-         cluster_cols=FALSE,
-         cluster_rows=length(unique(all.df$`Transcript Name`))>1,
-         gaps_col=1:4*3,
-         breaks=c(0, 0.5, 1),
-         legend_breaks=c(0.25, 0.75),
-         legend_labels=c("Missing", "Present"),
-         treeheight_row=0,
-         display_numbers=T,
-         number_format="%d",
-         fontsize=14,
-         number_color="white", fontsize_number=11,
-         main=paste("Gene: ", unique(df$`Gene Name`), " [", unique(df$`Gene ID`), "]", sep="", collapse=","),
-         )
-dev.off()
-
+args <- commandArgs(trailingOnly = TRUE)
+for (report.filename in args) {
+    df <- load.single.report(report.filename)
+    out.filename <- paste(sub("^(.*)\\.[^.]*$", "\\1", report.filename), ".png", sep="")
+    produce.heatmap(df, out.filename)
+}
