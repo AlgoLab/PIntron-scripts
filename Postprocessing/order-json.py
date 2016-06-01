@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 import json
@@ -9,16 +11,15 @@ jsonFile = open("full.json", "r")
 data = json.load(jsonFile)
 jsonFile.close()
 
-#modifica dei dati
-def extract_start(json):
-    try:
-        return int(json['introns'][]['absolute_start'])
-    except KeyError:
-        return 0
+def sort_introns(intron):
+    return intron['chromosome start'] * 1000000 + intron['length']
+    # Works only if no intron is longer than 1000000
 
-data.sort(key=extract_start, reverse=False)
+introns = list(data['introns'].values())
+sorted_introns = sorted(introns, key=sort_introns)
 
-#apertura del file in scrittura
-jsonFile = open("full.json", "w+")
-jsonFile.write(json.dumps(data))
-jsonFile.close()
+data['introns'] = dict(zip(range(1, len(introns)), sorted_introns))
+# print(sorted_introns)
+
+
+print(json.dumps(data, sort_keys=True, indent=4))
